@@ -17,7 +17,7 @@ rm -rf dist/
 
 is_tests_enabled=true
 for i in "$@"; do
-  if [[ $i == "-DskipTests" ]]; then
+  if [[ $i == "-DskipTests"* ]]; then
     is_tests_enabled=false
     break
   fi
