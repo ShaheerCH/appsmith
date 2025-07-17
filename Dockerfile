@@ -1,64 +1,73 @@
-ARG BASE
-FROM ${BASE}
+# Start from Ubuntu 22.04
+FROM ubuntu:22.04
 
+# Set environment variable to indicate running inside Docker
 ENV IN_DOCKER=1
 
-ARG APPSMITH_CLOUD_SERVICES_BASE_URL
-ENV APPSMITH_CLOUD_SERVICES_BASE_URL=${APPSMITH_CLOUD_SERVICES_BASE_URL}
-
-ARG APPSMITH_SEGMENT_CE_KEY
-ENV APPSMITH_SEGMENT_CE_KEY=${APPSMITH_SEGMENT_CE_KEY}
-
-COPY deploy/docker/fs /
-
-# Install git
+# Install necessary packages
 RUN apt-get update && \
-    apt-get install -y git && \
+    apt-get install -y \
+    git \
+    curl \
+    openjdk-11-jdk \
+    nodejs \
+    npm \
+    yarn \
+    unzip \
+    ca-certificates \
+    gnupg \
+    lsb-release \
+    supervisor && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN <<END
-  if ! [ -f info.json ]; then
-    echo "Missing info.json" >&2
-    exit 1
-  fi
+# Set working directory
+WORKDIR /opt/appsmith
 
-  if ! [ -f server/mongo/server.jar -a -f server/pg/server.jar ]; then
-    echo "Missing one or both server.jar files in the right place. Are you using the build script?" >&2
-    exit 1
-  fi
-END
+# Copy the entire Appsmith source code into the container
+COPY . .
 
-# Add client UI - Application Layer
-COPY ./app/client/build editor/
+# Install backend dependencies and build the server
+RUN cd app/server && \
+    ./build.sh -DskipTests=true
 
-# Add RTS - Application Layer
-COPY ./app/client/packages/rts/dist rts/
+# Install frontend dependencies and build the client
+RUN cd app/client && \
+    yarn install && \
+    yarn build
 
-ENV PATH /opt/bin:/opt/java/bin:/opt/node/bin:$PATH
+# Build the Real-Time Server (RTS)
+RUN cd app/client/packages/rts && \
+    yarn install && \
+    yarn build
 
-RUN <<END
-  set -o errexit
+# Copy built frontend and RTS into appropriate directories
+RUN mkdir -p /opt/appsmith/editor /opt/appsmith/rts && \
+    cp -r app/client/build/* /opt/appsmith/editor/ && \
+    cp -r app/client/packages/rts/dist/* /opt/appsmith/rts/
 
-  # Make all `*.sh` files executable, excluding `node_modules`.
-  find . \( -name node_modules -prune \) -o \( -type f -name '*.sh' \) -exec chmod +x '{}' +
+# Copy Docker-specific files
+COPY deploy/docker/fs/ /
 
-  # Ensure all custom command-scripts have executable permission
-  chmod +x /opt/bin/* /watchtower-hooks/*.sh
+# Set PATH environment variable
+ENV PATH="/opt/bin:/opt/java/bin:/opt/node/bin:$PATH"
 
-  # Disable setuid/setgid bits for the files inside container.
-  find / \( -path /proc -prune \) -o \( \( -perm -2000 -o -perm -4000 \) -exec chmod -s '{}' + \) || true
+# Make shell scripts executable
+RUN find . -type f -name "*.sh" -exec chmod +x {} \; && \
+    chmod +x /opt/bin/* /watchtower-hooks/*.sh
 
-  mkdir -p /.mongodb/mongosh /appsmith-stacks
-  chmod ugo+w /etc /appsmith-stacks
-  chmod -R ugo+w /var/run /.mongodb /etc/ssl /usr/local/share
-END
+# Create necessary directories and set permissions
+RUN mkdir -p /.mongodb/mongosh /appsmith-stacks && \
+    chmod ugo+w /etc /appsmith-stacks && \
+    chmod -R ugo+w /var/run /.mongodb /etc/ssl /usr/local/share
 
-LABEL com.centurylinklabs.watchtower.lifecycle.pre-check=/watchtower-hooks/pre-check.sh
-LABEL com.centurylinklabs.watchtower.lifecycle.pre-update=/watchtower-hooks/pre-update.sh
-
+# Expose necessary ports
 EXPOSE 80
 EXPOSE 443
-ENTRYPOINT [ "/opt/appsmith/entrypoint.sh" ]
-HEALTHCHECK --interval=15s --timeout=15s --start-period=45s CMD "/opt/appsmith/healthcheck.sh"
+
+# Define healthcheck
+HEALTHCHECK --interval=15s --timeout=15s --start-period=45s CMD ["/opt/appsmith/healthcheck.sh"]
+
+# Set entrypoint and default command
+ENTRYPOINT ["/opt/appsmith/entrypoint.sh"]
 CMD ["/usr/bin/supervisord", "-n"]
