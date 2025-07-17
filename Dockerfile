@@ -10,6 +10,7 @@ RUN apt-get update && \
     git \
     curl \
     openjdk-11-jdk \
+    maven \
     nodejs \
     npm \
     yarn \
