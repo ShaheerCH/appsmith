@@ -9,13 +9,17 @@ RUN apt-get update && \
     apt-get install -y \
     git \
     curl \
-    unzip \
-    ca-certificates \
-    gnupg \
-    lsb-release \
     openjdk-17-jdk \
     maven \
-    supervisor && \
+    docker.io \
+    unzip \
+    supervisor \
+    ca-certificates \
+    gnupg \
+    lsb-release && \
+    curl -fsSL https://deb.nodesource.com/setup_16.x | bash - && \
+    apt-get install -y nodejs && \
+    npm install -g yarn@1.22.19 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
