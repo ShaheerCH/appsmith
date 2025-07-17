@@ -17,14 +17,14 @@ RUN apt-get update && \
     ca-certificates \
     gnupg \
     lsb-release && \
-    curl -fsSL https://deb.nodesource.com/setup_16.x | bash - && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y nodejs && \
     npm install -g yarn@1.22.19 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Node.js 16.x (required)
-RUN curl -fsSL https://deb.nodesource.com/setup_16.x | bash - && \
+# Install Node.js 20.x (required)
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y nodejs
 
 # Install Yarn v1 (not v3+)
